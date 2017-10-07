@@ -273,40 +273,41 @@ gensyms :: [Name] -> [Name]
 gensyms d = let x = gensym d in x : gensyms (x : d)
 
 class Nominal a where
-  support :: a -> [Name]
+  support :: a -> Set Name
   act     :: a -> (Name,Formula) -> a
   swap    :: a -> (Name,Name) -> a
 
 fresh :: Nominal a => a -> Name
-fresh = gensym . support
+fresh = gensym . Set.toList . support
 
 -- freshNice :: Nominal a => Name -> a -> Name
 -- freshNice i = gensymNice i . support
 
 freshs :: Nominal a => a -> [Name]
-freshs = gensyms . support
+freshs = gensyms . Set.toList . support
 
-unions :: Eq a => [[a]] -> [a]
-unions = foldr union []
+unions :: Ord a => [Set a] -> Set a
+unions = Set.unions
+-- unions = foldr union []
 
-unionsMap :: Eq b => (a -> [b]) -> [a] -> [b]
-unionsMap f = unions . map f
+-- unionsMap :: Ord b => (a -> [b]) -> [a] -> [b]
+-- unionsMap f = unions . map f
 
 newtype Nameless a = Nameless { unNameless :: a }
                    deriving (Eq, Ord)
 
 instance Nominal (Nameless a) where
-  support _ = []
+  support _ = Set.empty
   act x _   = x
   swap x _  = x
 
 instance Nominal () where
-  support () = []
+  support () = Set.empty
   act () _   = ()
   swap () _  = ()
 
 instance (Nominal a, Nominal b) => Nominal (a, b) where
-  support (a, b) = support a `union` support b
+  support (a, b) = support a `Set.union` support b
   act (a,b) f    = (act a f,act b f)
   swap (a,b) n   = (swap a n,swap b n)
 
@@ -343,16 +344,16 @@ instance Nominal a => Nominal [a]  where
   swap xs n   = [ swap x n | x <- xs ]
 
 instance Nominal a => Nominal (Maybe a)  where
-  support    = maybe [] support
+  support    = maybe Set.empty support
   act v f    = fmap (`act` f) v
   swap a n   = fmap (`swap` n) a
 
 instance Nominal Formula where
-  support (Dir _)        = []
-  support (Atom i)       = [i]
-  support (NegAtom i)    = [i]
-  support (phi :/\: psi) = support phi `union` support psi
-  support (phi :\/: psi) = support phi `union` support psi
+  support (Dir _)        = Set.empty
+  support (Atom i)       = Set.fromList [i]
+  support (NegAtom i)    = Set.fromList [i]
+  support (phi :/\: psi) = support phi `Set.union` support psi
+  support (phi :\/: psi) = support phi `Set.union` support psi
 
   act (Dir b) (i,phi)  = Dir b
   act (Atom j) (i,phi) | i == j    = phi
@@ -419,8 +420,8 @@ transposeSystemAndList tss (u:us) =
 
 -- Now we ensure that the keys are incomparable
 instance Nominal a => Nominal (System a) where
-  support s = unions (map keys $ keys s)
-              `union` support (elems s)
+  support s = unions (map Set.fromList (map keys $ keys s))
+              `Set.union` support (elems s)
 
   act s (i, phi) = addAssocs (assocs s)
     where
@@ -446,7 +447,7 @@ shape = border ()
 instance {-# OVERLAPPING #-} (Nominal a, Arbitrary a) => Arbitrary (System a) where
   arbitrary = do
     a <- arbitrary
-    border a <$> arbitraryShape (support a)
+    border a <$> arbitraryShape (Set.toList $ support a)
     where
       arbitraryShape :: [Name] -> Gen (System ())
       arbitraryShape supp = do

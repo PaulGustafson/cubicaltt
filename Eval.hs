@@ -47,7 +47,7 @@ lookName i _ = error $ "lookName: not found " ++ show i
 -- Nominal instances
 
 instance Nominal Ctxt where
-  support _ = []
+  support _ = Set.empty
   act e _   = e
   swap e _  = e
 
@@ -58,12 +58,12 @@ instance Nominal Env where
 
 instance Nominal Val where
   support v = case v of
-    VU                      -> []
+    VU                      -> Set.empty
     Ter _ e                 -> support e
     VPi u v                 -> support [u,v]
     VComp a u ts            -> support (a,u,ts)
     VPathP a v0 v1          -> support [a,v0,v1]
-    VPLam i v               -> i `delete` support v
+    VPLam i v               -> i `Set.delete` support v
     VSigma u v              -> support (u,v)
     VPair u v               -> support (u,v)
     VFst u                  -> support u
